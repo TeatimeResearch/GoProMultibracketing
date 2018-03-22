@@ -6,7 +6,7 @@ That said, feel free to use this for whatever.
 
 ## Setup
 - install python3
-- install openv ( *pip install opencv-python* )
+- install opencv ( *pip install opencv-python* )
 - install gopro api ( *pip install goprocam* or https://github.com/KonradIT/gopro-py-api )
 - configure wifi on your gopros
 - connect your computer to each at least once
