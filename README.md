@@ -6,6 +6,7 @@ That said, feel free to use this for whatever.
 
 ## Setup
 - install python3
+- install openv ( *pip install opencv-python* )
 - install gopro api ( *pip install goprocam* or https://github.com/KonradIT/gopro-py-api )
 - configure wifi on your gopros
 - connect your computer to each at least once
@@ -23,6 +24,8 @@ That said, feel free to use this for whatever.
 - Windows
   - only for the wifi network commands - you could easily port this to your environment
 - Python 3
+- OpenCV
+  - only for image preview
 - GoPro API
 - GoPro cameras
   - tested with HERO4 black
