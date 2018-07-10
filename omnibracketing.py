@@ -16,23 +16,26 @@ useBracketing = True
 preview = True
 
 # set video settings
-setVideoMode = False
-videoDuration = 120
+startVideo = False
+videoDuration = 0
+
+downloadVideos = False
 
 # delete camera contents after image download ( also stuff that was there earlier like videos! )
 deleteAll = False
 # enter standby after taking photos ( saves battery, leaves wifi on and can wake up the next time you need it )
 powerOff = True
-# write camera mac addresses into a file - only need to do
+
+# write camera mac addresses into a file - only need to do once
 writeMacs = False
 
 beepWhenDone = True
 
 # what brackets to take
 brackets = [
-    (constants.Photo.EvComp.M2, "m2"),
+    (constants.Photo.EvComp.P2, "p2"), # bright
     (constants.Photo.EvComp.Zero, "o"),
-    (constants.Photo.EvComp.P2, "p2")
+    (constants.Photo.EvComp.M2, "m2"), # dark
 ]
 
 # wifi ssids of your cameras - connect to them at least once on this machine so you have their profile and passwords in the system
@@ -60,6 +63,8 @@ startTime = int(datetime.datetime.now().timestamp())
 cam = False
 batteryStatus = []
 
+powerOff=powerOff and not startVideo # do not turn off if we're starting video!
+
 # force refresh wifi - requires to run as admin
 #check_output('netsh interface set interface name="'+wifidevicename+'" admin=disabled', shell=True)
 #time.sleep(1)
@@ -85,7 +90,8 @@ if (not okToGo):
     exit()
 
 shotid = str(int(datetime.datetime.now().timestamp()))
-os.makedirs(shotid)
+if (takePhotos):
+    os.makedirs(shotid)
 
 if writeMacs:
     cameraMacs = open("cameraMacs.txt", "w")
@@ -96,6 +102,7 @@ for cameraname, cameraMac in zip(cameralist, camsMacs):
     print("connecting to camera " + cameraname)
 
     # wlan connection - very windows specific
+    # you can use 'netsh wlan connect ssid="ssidname" key="yourpassword"' but safer to first connect manually
     wlanstdout = check_output("netsh wlan connect " + cameraname, shell=True)  # connect wifi
     connected = False
     while (not connected):
@@ -120,19 +127,25 @@ for cameraname, cameraMac in zip(cameralist, camsMacs):
 
     #cam.power_on()
 
+
     if (takePhotos):
         cam.gpControlSet(constants.Setup.BEEP, constants.Setup.Beep.OFF)
 
         cam.mode(constants.Mode.PhotoMode, constants.Mode.SubMode.Photo.Single)
         cam.gpControlSet(constants.Photo.ISO_LIMIT, constants.Photo.IsoLimit.ISO100)
         cam.gpControlSet(constants.Photo.ISO_MIN, constants.Photo.IsoLimit.ISO100)
+        cam.gpControlSet(constants.Photo.RESOLUTION, constants.Photo.Resolution.R12W)
+
         if (useBracketing):
             cam.gpControlSet(constants.Photo.PROTUNE_PHOTO, constants.Photo.ProTune.ON)
+
             for bracket in brackets:
                 print("Bracket: " + bracket[1])
                 #cam.mode(constants.Mode.PhotoMode,constants.Mode.SubMode.Photo.Single) # nightmode useful?
                 cam.gpControlSet(constants.Photo.EVCOMP, str(bracket[0]))
+                # todo: this is unreliable for some damn reason - find a way to check if setting actually has been applied?
                 time.sleep(2)
+
                 filename = cam.take_photo(0)
                 #print(filename)
                 path, file = filename.split("/")[-2:]
@@ -144,7 +157,9 @@ for cameraname, cameraMac in zip(cameralist, camsMacs):
                     img = cv2.imread(targetfile)
                     img = cv2.resize(img, (800, 600), interpolation=cv2.INTER_NEAREST)
                     cv2.imshow("Image", img)
-                    cv2.waitKey(1)
+                    cv2.waitKey(100)
+
+            cam.gpControlSet(constants.Photo.EVCOMP, str(brackets[0][0])) # reset because it's so damn unreliable
         else:
             #cam.gpControlSet(constants.Photo.PROTUNE_PHOTO, constants.Photo.ProTune.OFF)
             cam.gpControlSet(constants.Photo.PROTUNE_PHOTO, constants.Photo.ProTune.ON)
@@ -158,21 +173,40 @@ for cameraname, cameraMac in zip(cameralist, camsMacs):
                 img = cv2.imread(targetfile)
                 img = cv2.resize(img, (800, 600), interpolation=cv2.INTER_NEAREST)
                 cv2.imshow("Image", img)
-                cv2.waitKey(1)
+                cv2.waitKey(100)
 
-    if (setVideoMode):
-        # todo? video was not important for us
+    if (startVideo):
+        cam.shutter(constants.stop) # stop in case still recording
+
         cam.mode(constants.Mode.VideoMode, constants.Mode.SubMode.Video.Video)
         cam.gpControlSet(constants.Video.PROTUNE_VIDEO, constants.Video.ProTune.ON)
         cam.gpControlSet(constants.Video.EVCOMP, constants.Video.EvComp.Zero)
-        cam.gpControlSet(constants.Video.ISO_LIMIT, constants.Video.IsoLimit.ISO100)
+        cam.gpControlSet(constants.Video.ISO_LIMIT, constants.Video.IsoLimit.ISO400)
         cam.gpControlSet(constants.Video.ISO_MODE, constants.Video.IsoMode.Max)
-        #constants.Video.ProTune.ON
-        print("starting video for " + str(videoDuration))
-        #cam.video_settings(constants.Video. asdfasdf)
-        #cam.shoot_video(videoDuration)
+        #cam.gpControlSet(constants.Video.VIDEO_EIS, constants.Video.VideoEIS.ON) #what even is this
+        #todo: video exposure???
+        #cam.gpControlSet("73","1") #exposure from nodejs project - doesn't seem to work
+        #cam.gpControlSet("73","23")
+        cam.gpControlSet(constants.Video.RESOLUTION, constants.Video.Resolution.R4k)
 
-    if (deleteAll):
+        print("starting video for " + str(videoDuration))
+        time.sleep(1)
+        #cam.video_settings(constants.Video. asdfasdf)
+        cam.shoot_video(videoDuration)
+        #cam.shutter(constants.start)
+
+    if downloadVideos:
+        cam.shutter(constants.stop) # stop in case still recording
+        time.sleep(1)
+
+        mediaList=cam.listMedia(True,True)
+        for file in mediaList:
+            if file[1].endswith('MP4'):
+                print(file[0]+'/'+file[1]+'   '+str(int(int(file[2])/1024/1024))+'M')
+                cam.downloadMedia(file[0],file[1])
+                os.rename(file[1],"cam" + cameraname +"_"+file[1])
+
+    if deleteAll:
         cam.delete("all")
 
     if writeMacs:
@@ -189,6 +223,8 @@ for cameraname, cameraMac in zip(cameralist, camsMacs):
         cam.locate(constants.Locate.Stop)
 
     if powerOff:
+        cam.shutter(constants.stop)
+        time.sleep(1)
         cam.power_off()
 
 if writeMacs:
