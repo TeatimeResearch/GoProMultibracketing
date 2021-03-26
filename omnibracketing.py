@@ -146,9 +146,18 @@ for cameraname, cameraMac in zip(cameralist, camsMacs):
                 # todo: this is unreliable for some damn reason - find a way to check if setting actually has been applied?
                 time.sleep(2)
 
-                filename = cam.take_photo(0)
+                filename=False
+                file=False
+                while not file:
+                    try:
+                        filename = cam.take_photo(0)
+                        path, file = filename.split("/")[-2:]
+                        #print("filename "+file)
+                        #print("filenamelen "+str(len(filename)))
+                        #print("filenametype "+str(type(filename)))
+                    except:
+                        print('retry photo')
                 #print(filename)
-                path, file = filename.split("/")[-2:]
                 #print(path,file)
                 targetfile = shotid + "\hdr_cam" + cameraname + "_ev" + bracket[1] + ".jpg"
                 cam.downloadMedia(path, file, custom_filename=targetfile)
@@ -208,6 +217,10 @@ for cameraname, cameraMac in zip(cameralist, camsMacs):
 
     if deleteAll:
         cam.delete("all")
+        mediaList=cam.listMedia(True,True)
+        for file in mediaList:
+            print('deleting '+file[0] + '/' + file[1])
+            cam.deleteFile(file[0],file[1])
 
     if writeMacs:
         cameraMacs.write(cam.infoCamera(constants.Camera.MacAddress) + "\n")
